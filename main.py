@@ -73,7 +73,13 @@ print("wifi ok", wlan.ifconfig()[0])
 fill(0, 40, 80)  # idle teal
 
 BROKER = "10.1.1.1"
-TOPICS = (b"edge-net/gamepad/frame", b"edge-net/gamepad/led", b"edge-net/gamepad/led/clear")
+DEVICE_ID = "2"   # also answer on our own channel, for individual control
+TOPICS = (
+    b"edge-net/gamepad/frame", b"edge-net/gamepad/led", b"edge-net/gamepad/led/clear",
+    ("edge-net/plasma/%s/frame" % DEVICE_ID).encode(),
+    ("edge-net/plasma/%s/led" % DEVICE_ID).encode(),
+    ("edge-net/plasma/%s/led/clear" % DEVICE_ID).encode(),
+)
 mqtt = MQTTClient("edge-net-led2", BROKER, port=1883, keepalive=60)
 mqtt.set_callback(on_msg)
 mqtt.connect()
