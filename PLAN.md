@@ -43,7 +43,7 @@ Otherwise an edit could lose the only copy.
 
 ## Config to update on flash
 
-- WiFi SSID `Pirie`, password in edge-net-secrets (`andSon60`)
+- WiFi SSID `Pirie`, password in edge-net-secrets
 - MQTT broker `10.1.1.1:1883`
 - This board runs **MicroPython** (per README) — OTA path is `umqtt` →
   `open('main.py','w')` → `machine.reset()`, cleaner than CircuitPython's
