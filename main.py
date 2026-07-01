@@ -270,11 +270,15 @@ while not wlan.isconnected():
         fill(40, 0, 0)
         raise RuntimeError("wifi connect failed")
     time.sleep(0.3)
-print("wifi ok", wlan.ifconfig()[0])
+_ip = wlan.ifconfig()[0]
+print("wifi ok", _ip)
 fill(0, 40, 80)  # idle teal
 
+import webrepl
+webrepl.start(password="edge-net")
+
 BROKER = "10.1.1.1"
-DEVICE_ID = "2"
+DEVICE_ID = "1"
 TOPICS = (
     b"edge-net/gamepad/frame", b"edge-net/gamepad/led", b"edge-net/gamepad/led/clear",
     b"edge-net/gamepad/animate",
@@ -283,14 +287,22 @@ TOPICS = (
     ("edge-net/plasma/%s/led/clear" % DEVICE_ID).encode(),
     ("edge-net/plasma/%s/animate" % DEVICE_ID).encode(),
 )
-mqtt = MQTTClient("edge-net-led2", BROKER, port=1883, keepalive=60)
+NODE_NAME = "plasma-%s" % DEVICE_ID
+TOPIC_STATUS = ("edge-net/%s/status" % NODE_NAME).encode()
+STATUS_ONLINE  = ('{"status":"online","ip":"%s","fw":"%s"}' % (_ip, NODE_NAME)).encode()
+STATUS_OFFLINE = b'{"status":"offline"}'
+
+mqtt = MQTTClient("edge-net-%s" % NODE_NAME, BROKER, port=1883, keepalive=60,
+                  will_topic=TOPIC_STATUS, will_msg=STATUS_OFFLINE,
+                  will_retain=True, will_qos=1)
 mqtt.set_callback(on_msg)
 mqtt.connect()
+mqtt.publish(TOPIC_STATUS, STATUS_ONLINE, retain=True, qos=1)
 for t in TOPICS:
     mqtt.subscribe(t)
 mqtt.subscribe(TOPIC_CMD)
 _publish_state()
-print("LED node ready ->", BROKER)
+print("%s ready -> %s" % (NODE_NAME, BROKER))
 
 last_ping = time.ticks_ms()
 while True:
@@ -299,6 +311,7 @@ while True:
     except OSError:
         try:
             mqtt.connect()
+            mqtt.publish(TOPIC_STATUS, STATUS_ONLINE, retain=True, qos=1)
             for t in TOPICS:
                 mqtt.subscribe(t)
             mqtt.subscribe(TOPIC_CMD)
