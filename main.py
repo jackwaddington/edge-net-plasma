@@ -17,7 +17,14 @@ Subscribes (this device only, DEVICE_ID = "2"):
   edge-net/plasma/2/led/clear
   edge-net/plasma/2/animate
 
-Animation commands:
+Subscribes (MCP command interface):
+  edge-net/plasma/cmd           -> JSON {"action":"set_led_pattern","pattern":"...","color":"#rrggbb","correlationId":"..."}
+
+Publishes:
+  edge-net/plasma/state  (retain=True)  -> JSON {"pattern":"...","color":"..."}
+  edge-net/plasma/ack                   -> JSON {"correlationId":"...","ok":true}
+
+Animation commands (via /animate or MCP pattern field):
   rainbow [speed]               -> walking rainbow, optional speed 1-255 (default 20)
   fade <HEX,HEX,...>            -> smooth fade loop between colours e.g. FF0000,0000FF,FF6600
   flash <HEX,HEX,...>           -> hard flash between colours
@@ -31,6 +38,7 @@ A /animate or /led command replaces the current animation.
 import time
 import network
 import plasma
+import ujson
 from umqtt.simple import MQTTClient
 import WIFI_CONFIG as W
 from random import random, uniform
@@ -45,6 +53,12 @@ strip.start()
 _anim = None        # None = idle, string = current animation name
 _anim_args = []     # parsed animation arguments
 _anim_offset = 0.0  # shared offset/counter for animations
+_state_color = None # last solid colour set via MCP (hex string, e.g. "FF0000")
+
+# MCP topics
+TOPIC_CMD   = b"edge-net/plasma/cmd"
+TOPIC_STATE = b"edge-net/plasma/state"
+TOPIC_ACK   = b"edge-net/plasma/ack"
 
 
 def _s(v):
@@ -71,6 +85,73 @@ def _parse_colours(arg):
 
 def _lerp(a, b, t):
     return int(a + (b - a) * t)
+
+
+def _hex_to_rgb(h):
+    """'#FF00AA' or 'FF00AA' -> (255, 0, 170), or None on failure."""
+    h = h.lstrip("#")
+    if len(h) != 6:
+        return None
+    try:
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except ValueError:
+        return None
+
+
+def _publish_state():
+    state = ujson.dumps({"pattern": _anim or "off", "color": _state_color})
+    try:
+        mqtt.publish(TOPIC_STATE, state.encode(), retain=True, qos=1)
+    except Exception:
+        pass
+
+
+def _handle_cmd(payload):
+    """Handle a JSON command from edge-net/plasma/cmd."""
+    global _anim, _anim_args, _anim_offset, _state_color
+    try:
+        cmd = ujson.loads(payload)
+    except Exception:
+        return
+    action = cmd.get("action", "")
+    correlation_id = cmd.get("correlationId", "")
+
+    if action == "set_led_pattern":
+        pattern = cmd.get("pattern", "off").lower()
+        color_hex = (cmd.get("color") or "").lstrip("#").upper() or None
+
+        if pattern == "solid":
+            rgb = _hex_to_rgb(color_hex) if color_hex else (255, 255, 255)
+            if rgb:
+                _anim = "off"
+                _anim_args = []
+                _anim_offset = 0.0
+                _state_color = color_hex
+                fill(rgb[0], rgb[1], rgb[2])
+        elif pattern == "pulse":
+            hex_arg = (color_hex or "FFFFFF") + ",000000"
+            _anim = "fade"
+            _anim_args = [hex_arg]
+            _anim_offset = 0.0
+            _state_color = color_hex
+        elif pattern in ("rainbow", "fire", "fade", "flash"):
+            _anim = pattern
+            _anim_args = []
+            _anim_offset = 0.0
+            _state_color = color_hex
+        elif pattern in ("off", "stop"):
+            _anim = "off"
+            _anim_args = []
+            _anim_offset = 0.0
+            _state_color = None
+            fill(0, 0, 0)
+
+    _publish_state()
+    if correlation_id:
+        try:
+            mqtt.publish(TOPIC_ACK, ujson.dumps({"correlationId": correlation_id, "ok": True}).encode(), qos=1)
+        except Exception:
+            pass
 
 
 def _set_anim(cmd):
@@ -138,6 +219,10 @@ def on_msg(topic, msg):
     t = topic.decode()
     m = msg.decode().strip()
 
+    if t == "edge-net/plasma/cmd":
+        _handle_cmd(m)
+        return
+
     if t.endswith("/frame"):
         # Raw frame — blit immediately; does NOT clear animation state
         n = min(NUM, len(m) // 6)
@@ -203,6 +288,8 @@ mqtt.set_callback(on_msg)
 mqtt.connect()
 for t in TOPICS:
     mqtt.subscribe(t)
+mqtt.subscribe(TOPIC_CMD)
+_publish_state()
 print("LED node ready ->", BROKER)
 
 last_ping = time.ticks_ms()
@@ -214,6 +301,8 @@ while True:
             mqtt.connect()
             for t in TOPICS:
                 mqtt.subscribe(t)
+            mqtt.subscribe(TOPIC_CMD)
+            _publish_state()
         except Exception:
             time.sleep(1)
 
