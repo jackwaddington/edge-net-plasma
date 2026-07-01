@@ -292,9 +292,8 @@ TOPIC_STATUS = ("edge-net/%s/status" % NODE_NAME).encode()
 STATUS_ONLINE  = ('{"status":"online","ip":"%s","fw":"%s"}' % (_ip, NODE_NAME)).encode()
 STATUS_OFFLINE = b'{"status":"offline"}'
 
-mqtt = MQTTClient("edge-net-%s" % NODE_NAME, BROKER, port=1883, keepalive=60,
-                  will_topic=TOPIC_STATUS, will_msg=STATUS_OFFLINE,
-                  will_retain=True, will_qos=1)
+mqtt = MQTTClient("edge-net-%s" % NODE_NAME, BROKER, port=1883, keepalive=60)
+mqtt.set_last_will(TOPIC_STATUS, STATUS_OFFLINE, retain=True, qos=1)
 mqtt.set_callback(on_msg)
 mqtt.connect()
 mqtt.publish(TOPIC_STATUS, STATUS_ONLINE, retain=True, qos=1)
