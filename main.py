@@ -278,7 +278,7 @@ import webrepl
 webrepl.start(password="edge-net")
 
 BROKER = "10.1.1.1"
-DEVICE_ID = "1"
+DEVICE_ID = "2"
 TOPICS = (
     b"edge-net/gamepad/frame", b"edge-net/gamepad/led", b"edge-net/gamepad/led/clear",
     b"edge-net/gamepad/animate",
