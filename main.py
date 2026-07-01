@@ -274,8 +274,11 @@ _ip = wlan.ifconfig()[0]
 print("wifi ok", _ip)
 fill(0, 40, 80)  # idle teal
 
-import webrepl
-webrepl.start(password="edge-net")
+try:
+    import webrepl
+    webrepl.start(password="edge-net")
+except ImportError:
+    pass
 
 BROKER = "10.1.1.1"
 DEVICE_ID = "2"
