@@ -56,7 +56,7 @@ _anim_offset = 0.0  # shared offset/counter for animations
 _state_color = None # last solid colour set via MCP (hex string, e.g. "FF0000")
 
 # MCP topics
-TOPIC_CMD   = b"edge-net/plasma/cmd"
+TOPIC_CMD   = b"edge-net/plasma/cmd"    # broadcast — all strips
 TOPIC_STATE = b"edge-net/plasma/state"
 TOPIC_ACK   = b"edge-net/plasma/ack"
 
@@ -219,7 +219,7 @@ def on_msg(topic, msg):
     t = topic.decode()
     m = msg.decode().strip()
 
-    if t == "edge-net/plasma/cmd":
+    if t.endswith("/cmd"):
         _handle_cmd(m)
         return
 
@@ -289,6 +289,7 @@ TOPICS = (
     ("edge-net/plasma/%s/led" % DEVICE_ID).encode(),
     ("edge-net/plasma/%s/led/clear" % DEVICE_ID).encode(),
     ("edge-net/plasma/%s/animate" % DEVICE_ID).encode(),
+    ("edge-net/plasma/%s/cmd" % DEVICE_ID).encode(),  # per-device MCP command
 )
 NODE_NAME = "plasma-%s" % DEVICE_ID
 TOPIC_STATUS = ("edge-net/%s/status" % NODE_NAME).encode()
